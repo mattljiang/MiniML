@@ -98,6 +98,13 @@ let new_varname () : varid =
 (* subst : varid -> expr -> expr -> expr
    Substitute repl for free occurrences of var_name in exp
    repl = P*)
+
+let new_var =
+  let ctr = ref (-1) in
+  fun (s : string) ->
+    ctr := !ctr + 1;
+    s ^ string_of_int (!ctr) ;;
+
 let rec subst (var_name : varid) (repl : expr) (exp : expr) : expr =
   if not (SS.mem var_name (free_vars exp)) then exp else
   match exp with
@@ -109,10 +116,10 @@ let rec subst (var_name : varid) (repl : expr) (exp : expr) : expr =
   | Conditional (e1, e2, e3) -> Conditional (subst var_name repl e1,
                                              subst var_name repl e2,
                                              subst var_name repl e3)  (* if then else *)
-  | Fun (y, e) -> if x = var_name then Fun (y, e)
+  | Fun (y, e) -> if y = var_name then Fun (y, e)
                   else if not (SS.mem y (free_vars repl))
                   then Fun (y, subst var_name repl e)
-                  else let z = new_var in
+                  else let z = new_var "z" in
                        let subst_z = subst y (Var z) e in
                        Fun (z, subst var_name repl subst_z)                  (* function definitions *)
   (*let y = def in body
@@ -141,14 +148,14 @@ let rec subst (var_name : varid) (repl : expr) (exp : expr) : expr =
                       let z = 5 in y + z
                       :- 17 (RIGHT)
                         *)
-                else let z = new_var in
+                else let z = new_var "z" in
                     let subst_z = subst y (Var z) body in
                     Let (z, subst var_name repl def, subst var_name repl subst_z)
   | Letrec (y, def, body) ->
                 if y = var_name then Let (y, def, body)
                 else if not (SS.mem y (free_vars repl))
                 then Let (y, subst var_name repl def, subst var_name repl body)
-                else let z = new_var in
+                else let z = new_var "z" in
                      let subst_z = subst y (Var z) body in
                      Let (z, subst var_name repl def, subst var_name repl subst_z)
   | Raise -> Raise                             (* exceptions *)
@@ -189,20 +196,21 @@ let rec exp_to_concrete_string (exp : expr) : string =
     | Raise -> "raise (Some_Exception)"                               (* exceptions *)
     | Unassigned -> "temporarily unassigned"                           (* (temporarily) unassigned *)
     | App (e1, e2) -> match e1 with
-                      Fun (v, e) -> "(fun " ^ v ^ " -> " ^ e ^
+                      Fun (v, e) -> "(fun " ^ v ^ " -> " ^
+                                    exp_to_concrete_string e ^
                                     ") (" ^ exp_to_concrete_string e2 ^ ")"  ;;                (* function applications *)
 (* exp_to_abstract_string : expr -> string
    Returns a string representation of the abstract syntax of the expr *)
-let exp_to_abstract_string (exp : expr) : string =
+let rec exp_to_abstract_string (exp : expr) : string =
   let binop_help b e1 e2 : string =
-    "Unop (" ^ b ^ ", " ^
+    "Binop (" ^ b ^ ", " ^
     exp_to_abstract_string e1 ^ ", " ^ exp_to_abstract_string e2 ^ ")" in
     match exp with
     | Var v -> "Var " ^ v                         (* variables *)
     | Num n -> "Num " ^ string_of_int n                          (* integers *)
     | Bool b -> "Bool " ^ string_of_bool b                        (* booleans *)
-    | Unop (u, e) -> (match u with
-                     Negate -> "Unop (Negate, " ^ exp_to_abstract_string e ^ ")"
+    | Unop (u, e) ->
+      (match u with Negate -> "Unop (Negate, " ^ exp_to_abstract_string e ^ ")")
     | Binop (b, e1, e2) -> (match b with
                             | Plus -> binop_help "Plus" e1 e2
                             | Minus -> binop_help "Minus" e1 e2
@@ -220,4 +228,4 @@ let exp_to_abstract_string (exp : expr) : string =
     | Raise -> "Raise"                               (* exceptions *)
     | Unassigned -> "Unassigned"                           (* (temporarily) unassigned *)
     | App (e1, e2) -> "App (" ^ exp_to_abstract_string e1 ^ ", " ^
-                      exp_to_abstract_string e2 ")" ;;
+                      exp_to_abstract_string e2 ^ ")" ;;
