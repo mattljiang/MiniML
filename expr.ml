@@ -73,8 +73,7 @@ let rec free_vars (exp : expr) : varidset =
   | Conditional (e1, e2, e3) -> SS.union (free_vars e1)
                                 (SS.union (free_vars e2) (free_vars e3))  (* if then else *)
   | Fun (v, e) -> SS.diff (free_vars e) (SS.singleton v)                 (* function definitions *)
-  | Let (v, e1, e2) -> SS.union (free_vars e2)
-                       (SS.diff (free_vars e1) (SS.singleton v))
+  | Let (v, e1, e2) -> SS.union (free_vars e1) (free_vars e2)
   | Letrec (v, e1, e2) -> SS.union (free_vars e2)
                           (SS.diff (free_vars e1) (SS.singleton v))                           (* recursive local naming *)
   | Raise -> SS.empty                              (* exceptions *)
@@ -116,16 +115,42 @@ let rec subst (var_name : varid) (repl : expr) (exp : expr) : expr =
                   else let z = new_var in
                        let subst_z = subst y (Var z) e in
                        Fun (z, subst var_name repl subst_z)                  (* function definitions *)
-  | Let (y, e1, e2) ->
-                if y = var_name then Let (y, subst var_name repl e1, e2)
+  (*let y = def in body
+            Q      R   *)
+  | Let (y, def, body) ->
+                (*if y = var_name, then you replace var_name with what it was defined earlier on
+                  e.g. let x = X + 5 in x + 3 [X |-> 12]*)
+                if y = var_name then Let (y, subst var_name repl def, body)
+                (*if y <> var_name and...
+                  ...y is not in repl (aka P), then subst var_name with P in def and body
+                  e.g. let y = x + 5 in x + y [x |-> 12]*)
                 else if not (SS.mem y (free_vars repl))
-                then Let (y, subst var_name repl e1, subst var_name repl e2)
+                then Let (y, subst var_name repl def, subst var_name repl body)
+                (*...y is in repl (aka P), then change y to z to avoid capture
+                  e.g.let y = 5 in x (y + 1) [x |-> fun w -> y]
+                      let Y = 5 in (fun w -> Y) (y + 1)
+                      -instead of returning y + 1, the Y will be captured and return 5
+                      ...so...
+                      let z = 5 in x (z + 1) [x |-> fun w -> y]
+                      let z = 5 in (fun w -> y) (y + 1)
+                      OR
+                      let y = 5 in x + y [x |-> y, defined earlier as 12]
+                      let y = 5 in y + y
+                      :- 10 (WRONG)
+                      let z = 5 in x + z [x |-> y, defined earlier as 12]
+                      let z = 5 in y + z
+                      :- 17 (RIGHT)
+                        *)
                 else let z = new_var in
-                    let subst_z = subst y (Var z) e2 in
-                    Fun (z, subst var_name repl e1, subst var_name repl subst_z)
-
-  Let (v, subst var_name repl e1, subst var_name repl e2)
-  | Letrec (v, e1, e2) -> Letrec (v, subst var_name repl e1, subst var_name repl e2)                        (* recursive local naming *)
+                    let subst_z = subst y (Var z) body in
+                    Let (z, subst var_name repl def, subst var_name repl subst_z)
+  | Letrec (y, def, body) ->
+                if y = var_name then Let (y, def, body)
+                else if not (SS.mem y (free_vars repl))
+                then Let (y, subst var_name repl def, subst var_name repl body)
+                else let z = new_var in
+                     let subst_z = subst y (Var z) body in
+                     Let (z, subst var_name repl def, subst var_name repl subst_z)
   | Raise -> Raise                             (* exceptions *)
   | Unassigned -> Unassigned                         (* (temporarily) unassigned *)
   | App (e1, e2) -> App (subst var_name repl e1, subst var_name repl e2)               (* function applications *) ;;
@@ -169,4 +194,30 @@ let rec exp_to_concrete_string (exp : expr) : string =
 (* exp_to_abstract_string : expr -> string
    Returns a string representation of the abstract syntax of the expr *)
 let exp_to_abstract_string (exp : expr) : string =
-    failwith "exp_to_abstract_string not implemented" ;;
+  let binop_help b e1 e2 : string =
+    "Unop (" ^ b ^ ", " ^
+    exp_to_abstract_string e1 ^ ", " ^ exp_to_abstract_string e2 ^ ")" in
+    match exp with
+    | Var v -> "Var " ^ v                         (* variables *)
+    | Num n -> "Num " ^ string_of_int n                          (* integers *)
+    | Bool b -> "Bool " ^ string_of_bool b                        (* booleans *)
+    | Unop (u, e) -> (match u with
+                     Negate -> "Unop (Negate, " ^ exp_to_abstract_string e ^ ")"
+    | Binop (b, e1, e2) -> (match b with
+                            | Plus -> binop_help "Plus" e1 e2
+                            | Minus -> binop_help "Minus" e1 e2
+                            | Times -> binop_help "Times" e1 e2
+                            | Equals -> binop_help "Equals" e1 e2
+                            | LessThan -> binop_help "LessThan" e1 e2)      (* binary operators *)
+    | Conditional (e1, e2, e3) -> "Conditional (" ^ exp_to_abstract_string e1 ^
+                                  ", " ^ exp_to_abstract_string e2 ^ ", " ^
+                                  exp_to_abstract_string e3 ^ ")"
+    | Fun (v, e) -> "Fun (" ^ v ^ ", " ^ exp_to_abstract_string e                  (* function definitions *)
+    | Let (v, e1, e2) -> "Let (" ^ v ^ ", " ^ exp_to_abstract_string e1 ^ ", " ^
+                         exp_to_abstract_string e2 ^ ")"
+    | Letrec (v, e1, e2) -> "Letrec (" ^ v ^ ", " ^ exp_to_abstract_string e1 ^
+                            ", " ^ exp_to_abstract_string e2 ^ ")"        (* recursive local naming *)
+    | Raise -> "Raise"                               (* exceptions *)
+    | Unassigned -> "Unassigned"                           (* (temporarily) unassigned *)
+    | App (e1, e2) -> "App (" ^ exp_to_abstract_string e1 ^ ", " ^
+                      exp_to_abstract_string e2 ")" ;;
