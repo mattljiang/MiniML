@@ -108,16 +108,21 @@ let eval_t (exp : expr) (_env : Env.env) : Env.value =
   Env.Val exp ;;
 
 (* The SUBSTITUTION MODEL evaluator -- to be completed *)
+(* let exp_of_eval eval e: expr =
+  (match eval e env with
+  | Val exp -> exp
+  | Closure (exp, env) -> exp) in *)
 
 let rec eval_s (exp : expr) (env : Env.env) : Env.value =
-  let exp_of_eval q : expr =
-    (match eval_s q env with
+  (* let exp_of_eval = exp_of_eval eval_s in *)
+  let exp_of_eval e: expr =
+    (match eval_s e env with
     | Val exp -> exp
     | Closure (exp, env) -> exp) in
   match exp with
-    | Var v -> raise (EvalError "Unbound variable")                         (* variables *)
-    | Num n -> Val (Num n)                          (* integers *)
-    | Bool b -> Val (Bool b)                        (* booleans *)
+    | Var v -> raise (EvalError "Unbound variable")
+    | Num n -> Val (Num n)
+    | Bool b -> Val (Bool b)
     | Unop (u, e) -> (match exp_of_eval e with
                       | Num n -> (match u with Negate -> Val (Num ~-n))
                       | _ -> raise (EvalError "Not an integer"))
@@ -150,10 +155,49 @@ let rec eval_s (exp : expr) (env : Env.env) : Env.value =
    completed *)
 
 let rec eval_d (exp : expr) (env : Env.env) : Env.value =
-  let exp_of_eval e : expr =
+  let exp_of_eval e: expr =
     (match eval_d e env with
     | Val exp -> exp
     | Closure (exp, env) -> exp) in
+  match exp with
+    | Var v -> lookup env v
+    | Num n -> Val (Num n)
+    | Bool b -> Val (Bool b)
+    | Unop (u, e) -> (match exp_of_eval e with
+                      | Num n -> (match u with Negate -> Val (Num ~-n))
+                      | _ -> raise (EvalError "Not an integer"))
+    | Binop (b, e1, e2) -> (match exp_of_eval e1, exp_of_eval e2 with
+                              | Num n1, Num n2 -> (match b with
+                                | Plus -> Val (Num (n1 + n2))
+                                | Minus -> Val (Num (n1 - n2))
+                                | Times -> Val (Num (n1 * n2))
+                                | Equals -> Val (Bool (n1 = n2))
+                                | LessThan -> Val (Bool (n1 < n2)))
+                              | _ -> raise (EvalError "Not an integer"))
+    | Conditional (e1, e2, e3) -> (match exp_of_eval e1 with
+                                   | Bool b ->
+                                        if b then eval_d e2 env
+                                        else eval_d e3 env
+                                   | _ -> raise (EvalError "Invalid condition"))
+    | Fun (y, e) -> Val (Fun (y, e))
+    | Let (y, def, body) -> eval_d body (extend env y (ref (eval_d def env)))
+    | Letrec (y, def, body) -> let unass = ref (Val Unassigned) in
+                               let extendenv = extend env y unass in
+                               let def' = eval_d def extendenv in
+                               unass := def';
+                               eval_d body extendenv
+    | Raise -> Val (Raise)
+    | Unassigned -> Val (Unassigned)
+    | App (p, q) -> match exp_of_eval p with
+                    | Fun (x, b) -> eval_d b (extend env x (ref (eval_d q env)))
+                    | _ -> raise (EvalError "Not a function") ;;
+
+(* The LEXICALLY-SCOPED ENVIRONMENT MODEL evaluator -- optionally
+   completed as (part of) your extension *)
+
+let eval_l (exp : expr) (env : Env.env) : Env.value =
+(*   failwith "not implemented";; *)
+  (* let exp_of_eval = exp_of_eval eval_l in
   match exp with
     | Var v -> lookup env v                         (* variables *)
     | Num n -> Val (Num n)                          (* integers *)
@@ -175,7 +219,7 @@ let rec eval_d (exp : expr) (env : Env.env) : Env.value =
                                         if b then eval_d e2 env
                                         else eval_d e3 env
                                    | _ -> raise (EvalError "Invalid condition"))
-    | Fun (y, e) -> Val (Fun (y, e))              (* function definitions *)
+    | Fun (y, e) -> Closure (Fun (y, e), env)              (* function definitions *)
     (*these will always match on to closures right? -> don't need to match on closures
       just do pseudocode in writeup / lecture*)
     | Let (y, def, body) -> eval_d body (extend env y (ref (eval_d def env)))
@@ -187,15 +231,9 @@ let rec eval_d (exp : expr) (env : Env.env) : Env.value =
     | Raise -> Val (Raise)
     | Unassigned -> Val (Unassigned)
     (*do I eval_s the whole thing?*)
-    | App (p, q) -> match (eval_d p env) with
-                    | Val (Fun (x, b)) -> eval_d b (extend env x (ref (eval_d q env)))
-                    | _ -> raise (EvalError "Not a function") ;;
-
-(* The LEXICALLY-SCOPED ENVIRONMENT MODEL evaluator -- optionally
-   completed as (part of) your extension *)
-
-let eval_l (_exp : expr) (_env : Env.env) : Env.value =
-  failwith "eval_l not implemented" ;;
+    | App (p, q) -> match exp_of_eval p with
+                    | Fun (x, b) -> eval_l b (extend env x (ref (eval_d q env)))
+                    | _ -> raise (EvalError "Not a function") ;; *)
 
 (* Connecting the evaluators to the external world. The REPL in
    miniml.ml uses a call to the single function evaluate defined
@@ -205,4 +243,4 @@ let eval_l (_exp : expr) (_env : Env.env) : Env.value =
    above, not the evaluate function, so it doesn't matter how it's set
    when you submit your solution.) *)
 
-let evaluate = eval_s ;;
+let evaluate = eval_d ;;
