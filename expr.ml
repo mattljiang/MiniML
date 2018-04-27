@@ -73,9 +73,10 @@ let rec free_vars (exp : expr) : varidset =
   | Conditional (e1, e2, e3) -> SS.union (free_vars e1)
                                 (SS.union (free_vars e2) (free_vars e3))  (* if then else *)
   | Fun (v, e) -> SS.diff (free_vars e) (SS.singleton v)                 (* function definitions *)
-  | Let (v, e1, e2) -> SS.union (free_vars e1) (free_vars e2)
-  | Letrec (v, e1, e2) -> SS.union (free_vars e2)
-                          (SS.diff (free_vars e1) (SS.singleton v))                           (* recursive local naming *)
+  | Let (v, e1, e2) -> SS.union (free_vars e1)
+                       (SS.diff (free_vars e2) (SS.singleton v))
+  | Letrec (v, e1, e2) -> SS.diff (SS.union (free_vars e1) (free_vars e2))
+                          (SS.singleton v)                          (* recursive local naming *)
   | Raise -> SS.empty                              (* exceptions *)
   | Unassigned -> SS.empty                          (* (temporarily) unassigned *)
   | App (e1, e2) -> SS.union (free_vars e1) (free_vars e2)                  (* function applications *) ;;
@@ -84,8 +85,11 @@ let rec free_vars (exp : expr) : varidset =
    Return a fresh variable, constructed with a running counter a la
    gensym. Assumes no variable names use the prefix "var". (Otherwise,
    they might accidentally be the same as a generated variable name.) *)
-let new_varname () : varid =
-  failwith "new_varname not implemented" ;;
+let new_varname =
+  let ctr = ref (-1) in
+  fun () ->
+    ctr := !ctr + 1;
+    "var" ^ string_of_int (!ctr) ;;
 
 (*......................................................................
   Substitution
@@ -98,12 +102,6 @@ let new_varname () : varid =
 (* subst : varid -> expr -> expr -> expr
    Substitute repl for free occurrences of var_name in exp
    repl = P*)
-
-let new_var =
-  let ctr = ref (-1) in
-  fun (s : string) ->
-    ctr := !ctr + 1;
-    s ^ string_of_int (!ctr) ;;
 
 let rec subst (var_name : varid) (repl : expr) (exp : expr) : expr =
   if not (SS.mem var_name (free_vars exp)) then exp else
@@ -119,7 +117,7 @@ let rec subst (var_name : varid) (repl : expr) (exp : expr) : expr =
   | Fun (y, e) -> if y = var_name then Fun (y, e)
                   else if not (SS.mem y (free_vars repl))
                   then Fun (y, subst var_name repl e)
-                  else let z = new_var "z" in
+                  else let z = new_varname () in
                        let subst_z = subst y (Var z) e in
                        Fun (z, subst var_name repl subst_z)                  (* function definitions *)
   (*let y = def in body
@@ -148,14 +146,14 @@ let rec subst (var_name : varid) (repl : expr) (exp : expr) : expr =
                       let z = 5 in y + z
                       :- 17 (RIGHT)
                         *)
-                else let z = new_var "z" in
+                else let z = new_varname () in
                     let subst_z = subst y (Var z) body in
                     Let (z, subst var_name repl def, subst var_name repl subst_z)
   | Letrec (y, def, body) ->
                 if y = var_name then Let (y, def, body)
                 else if not (SS.mem y (free_vars repl))
                 then Let (y, subst var_name repl def, subst var_name repl body)
-                else let z = new_var "z" in
+                else let z = new_varname () in
                      let subst_z = subst y (Var z) body in
                      Let (z, subst var_name repl def, subst var_name repl subst_z)
   | Raise -> Raise                             (* exceptions *)
