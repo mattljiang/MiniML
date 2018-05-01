@@ -31,6 +31,7 @@ module type Env_type = sig
     val extend : env -> varid -> value ref -> env
     val env_to_string : env -> string
     val value_to_string : ?printenvp:bool -> value -> string
+    val copy_env : env -> env
   end
 
 module Env : Env_type =
@@ -53,7 +54,8 @@ module Env : Env_type =
       try
         let _i, v = List.find (fun elt -> fst elt = varname) env in !v
       with
-      | Not_found -> raise (EvalError "Unbound variable") ;;
+      | Not_found -> let message = "Unbound variable" ^ varname in
+                     raise (EvalError message) ;;
 
     (* Returns a new environment just like env except that it maps the
        variable varid to loc *)
@@ -82,6 +84,12 @@ module Env : Env_type =
       | [] -> "END ENVIRONMENT"
       | (i, v) :: t -> "(" ^ i ^ ", " ^ value_to_string !v ^ ") " ^
                        env_to_string t ;;
+
+    let rec copy_env (env : env) : env =
+      match env with
+      | [] -> []
+      | (i, v) :: t -> (i, ref (!v)) :: copy_env t ;;
+
   end
 ;;
 
@@ -111,10 +119,6 @@ let eval_t (exp : expr) (_env : Env.env) : Env.value =
   Env.Val exp ;;
 
 (* The SUBSTITUTION MODEL evaluator -- to be completed *)
-(* let eval_help eval e: expr =
-  (match eval e env with
-  | Val exp -> exp
-  | Closure (exp, env) -> exp) in *)
 
 let eval_s (exp : expr) (_env : Env.env) : Env.value =
   let rec eval_help (exp: expr) : expr =
@@ -196,7 +200,8 @@ let rec eval_d (exp : expr) (env : Env.env) : Env.value =
                                exp_of_val (eval_d body extendenv)
     | Raise -> Raise
     | Unassigned -> Unassigned
-    | App (p, q) -> match eval_help p with
+    | App (p, q) -> Printf.printf "%s" (env_to_string env);
+                    match eval_help p with
                     | Fun (y, e) -> exp_of_val
                                   (eval_d e (extend env y (ref (eval_d q env))))
                     | _ -> raise (EvalError "Invalid function application") in
@@ -207,7 +212,7 @@ let rec eval_d (exp : expr) (env : Env.env) : Env.value =
 
 let rec eval_l (exp : expr) (env : Env.env) : Env.value =
 (*   failwith "not implemented";; *)
-  let exp_of_eval e : expr =
+  let exp_of_eval (e : expr) : expr =
     (match eval_l e env with
      | Val exp -> exp
      | Closure (exp, _env) -> exp) in
@@ -234,13 +239,15 @@ let rec eval_l (exp : expr) (env : Env.env) : Env.value =
                                       if b then eval_l e2 env
                                       else eval_l e3 env
                                  | _ -> raise (EvalError "Invalid condition"))
-  | Fun (y, e) -> Closure (Fun (y, e), env)
+  | Fun (y, e) -> close (Fun (y, e)) (copy_env env)
   | Let (y, def, body) -> eval_l body (extend env y (ref (eval_l def env)))
   | Letrec (f, def, body) -> let unass = ref (Val Unassigned) in
                              let extendenv = extend env f unass in
-                             let def' = eval_l def extendenv in
-                             unass := def';
-                             eval_l body extendenv
+                             let Closure (def', _env) = eval_l def extendenv in
+                             (* let def' = eval_l def extendenv in *)
+
+                             (* extend extendenv f (ref def') ; *)
+                             eval_l body (extend extendenv f (ref (Val def')))
   | Raise -> Val (Raise)
   | Unassigned -> Val (Unassigned)
   (* doesn't work with the updated extend  *)
