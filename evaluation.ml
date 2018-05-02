@@ -31,7 +31,7 @@ module type Env_type = sig
     val extend : env -> varid -> value ref -> env
     val env_to_string : env -> string
     val value_to_string : ?printenvp:bool -> value -> string
-    val copy_env : env -> env
+(*     val copy_env : env -> env *)
   end
 
 module Env : Env_type =
@@ -60,11 +60,16 @@ module Env : Env_type =
     (* Returns a new environment just like env except that it maps the
        variable varid to loc *)
     let extend (env : env) (varname : varid) (loc : value ref) : env =
-      try
+(*      try
         let _i, v = List.find (fun elt -> fst elt = varname) env in
-        v := !loc; env
-      with
-      | Not_found -> (varname, loc) :: env ;;
+        v := !loc; env *)
+
+        (*delete and re-add instead of update ref so that closure env
+          is not affected*)
+        (varname, loc) :: (List.filter (fun elt -> fst elt <> varname) env)
+
+(*       with
+      | Not_found -> (varname, loc) :: env *) ;;
 
     (* Returns a printable string representation of a value; the flag
        printenvp determines whether to include the environment in the
@@ -85,10 +90,10 @@ module Env : Env_type =
       | (i, v) :: t -> "(" ^ i ^ ", " ^ value_to_string !v ^ ") " ^
                        env_to_string t ;;
 
-    let rec copy_env (env : env) : env =
+(*     let rec copy_env (env : env) : env =
       match env with
       | [] -> []
-      | (i, v) :: t -> (i, ref (!v)) :: copy_env t ;;
+      | (i, v) :: t -> (i, ref (!v)) :: copy_env t ;; *)
 
   end
 ;;
@@ -239,20 +244,19 @@ let rec eval_l (exp : expr) (env : Env.env) : Env.value =
                                       if b then eval_l e2 env
                                       else eval_l e3 env
                                  | _ -> raise (EvalError "Invalid condition"))
-  | Fun (y, e) -> close (Fun (y, e)) (copy_env env)
+  | Fun (y, e) -> close (Fun (y, e)) env
   | Let (y, def, body) -> eval_l body (extend env y (ref (eval_l def env)))
   | Letrec (f, def, body) -> let unass = ref (Val Unassigned) in
                              let extendenv = extend env f unass in
-                             let Closure (def', _env) = eval_l def extendenv in
-                             (* let def' = eval_l def extendenv in *)
-
-                             (* extend extendenv f (ref def') ; *)
-                             eval_l body (extend extendenv f (ref (Val def')))
+                             (* let Closure (def', _env) = eval_l def extendenv in *)
+                             let def' = eval_l def extendenv in
+                             unass := def';
+                             (* eval_l body (extend extendenv f (ref def')) *)
+                             eval_l body extendenv
   | Raise -> Val (Raise)
   | Unassigned -> Val (Unassigned)
-  (* doesn't work with the updated extend  *)
   | App (p, q) -> (*print results in stack overflow for let rec*)
-                  Printf.printf "%s" (env_to_string env);
+                  (* Printf.printf "%s" (env_to_string env); *)
                   match eval_l p env with
                   | Closure (Fun (y, e), env_closure) ->
                         eval_l e (extend env_closure y (ref (eval_l q env)))
