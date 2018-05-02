@@ -127,11 +127,13 @@ let rec subst (var_name : varid) (repl : expr) (exp : expr) : expr =
                   Let (y, subst var_name repl def, subst var_name repl body)
                 else let z = new_varname () in
                      let subst_z = subst y (Var z) body in
-                     Let (z, subst var_name repl def, subst var_name repl subst_z)
+                     Let (z, subst var_name repl def, subst var_name repl
+                                                                        subst_z)
     | Letrec (f, def, body) ->
                    if f = var_name then Letrec (f, def, body)
                    else if not (SS.mem f (free_vars repl)) then
-                     Letrec (f, subst var_name repl def, subst var_name repl body)
+                     Letrec (f, subst var_name repl def, subst var_name repl
+                                                                           body)
                    else let z = new_varname () in
                         let subst_z_body = subst f (Var z) body in
                         let subst_z_def = subst f (Var z) def in
