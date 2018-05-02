@@ -159,7 +159,7 @@ test "subst x 12 let_test2" (lazy (subst "x" (Num 12) let_test2 = let_test2_1));
 test "subst f 12 letrec_test" (lazy (subst "f" (Num 12) letrec_test =
                                                                   letrec_test));
 test "subst y 12 letrec_test" (lazy (subst "y" (Num 12) letrec_test =
-                                                                  letrec_test_2));
+                                                                letrec_test_2));
 test "subst y f letrec_test" (lazy (subst "y" f letrec_test = letrec_test_3));
 
 test "subst x 12 raise_test" (lazy (subst "x" (Num 12) raise_test =
@@ -201,7 +201,8 @@ test "free_vars cond_test" (lazy (free_vars cond_test =
 
 test "free_vars fun_test0" (lazy (free_vars fun_test0 = vars_of_list []));
 test "free_vars fun_test" (lazy (free_vars fun_test = vars_of_list ["y"]));
-test "free_vars app_twoargs" (lazy (free_vars app_twoargs = vars_of_list ["f"]));
+test "free_vars app_twoargs"
+                            (lazy (free_vars app_twoargs = vars_of_list ["f"]));
 
 test "free_vars let_test" (lazy (free_vars let_test = vars_of_list ["x"]));
 test "free_vars let_test0" (lazy (free_vars let_test0 = vars_of_list ["y"]));

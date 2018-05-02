@@ -137,8 +137,9 @@ let lexscope_test : expr = str_to_exp ("let x = 1 in
                                         let f = fun y -> x + y in
                                         let x = 2 in
                                         f 3 ;;") ;;
-let lexscope_test2 : expr = str_to_exp ("let f = fun x -> fun y -> x + y in f 2 3;;") ;;
-let lexscope_test3 : expr = str_to_exp ("let twice = fun f -> fun x -> f (f x) in
+let lexscope_test2 : expr = str_to_exp ("let f = fun x -> fun y -> x + y
+                                                                 in f 2 3;;") ;;
+let lexscope_test3 : expr = str_to_exp("let twice = fun f -> fun x -> f (f x) in
                                          let square = fun x -> x * x in
                                          twice square 3;;") ;;
 let new_test (label : string) (eval : expr -> Env.env -> Env.value)
@@ -161,8 +162,10 @@ new_test "eval_s 9-5" eval_s (Binop (Minus, Num 9, Num 5)) (Val (Num 4));
 new_test "eval_s 9=5" eval_s (Binop (Equals, Num 9, Num 5)) (Val (Bool false));
 new_test "eval_s 9<5" eval_s (Binop (LessThan, Num 9, Num 5)) (Val (Bool false));
 
-new_test "eval_s false<false [exn]" eval_s (Binop (LessThan, Bool false, Bool false)) (Val x);
-new_test "eval_s false=false" eval_s (Binop (Equals, Bool false, Bool false)) (Val (Bool true));
+new_test "eval_s false<false [exn]" eval_s (Binop
+                                    (LessThan, Bool false, Bool false)) (Val x);
+new_test "eval_s false=false" eval_s (Binop (Equals, Bool false, Bool false))
+                                                              (Val (Bool true));
 new_test "eval_s 9+true [exn]" eval_s (Binop (Plus, Num 9, Bool true)) (Val x);
 new_test "eval_s cond_test_1 [exn]" eval_s cond_test_1 (Val x);
 new_test "eval_s cond_test_2" eval_s cond_test_2 (Val (Num 1));
@@ -208,8 +211,10 @@ new_test "eval_d 9-5" eval_d (Binop (Minus, Num 9, Num 5)) (Val (Num 4));
 new_test "eval_d 9=5" eval_d (Binop (Equals, Num 9, Num 5)) (Val (Bool false));
 new_test "eval_d 9<5" eval_d (Binop (LessThan, Num 9, Num 5)) (Val (Bool false));
 
-new_test "eval_d false<false [exn]" eval_d (Binop (LessThan, Bool false, Bool false)) (Val x);
-new_test "eval_d false=false" eval_d (Binop (Equals, Bool false, Bool false)) (Val (Bool true));
+new_test "eval_d false<false [exn]" eval_d (Binop
+                                    (LessThan, Bool false, Bool false)) (Val x);
+new_test "eval_d false=false" eval_d (Binop (Equals, Bool false, Bool false))
+                                                              (Val (Bool true));
 new_test "eval_d 9+true [exn]" eval_d (Binop (Plus, Num 9, Bool true)) (Val x);
 new_test "eval_d cond_test_1 [exn]" eval_d cond_test_1 (Val x);
 new_test "eval_d cond_test_2" eval_d cond_test_2 (Val (Num 1));
@@ -254,8 +259,10 @@ new_test "eval_l 9-5" eval_l (Binop (Minus, Num 9, Num 5)) (Val (Num 4));
 new_test "eval_l 9=5" eval_l (Binop (Equals, Num 9, Num 5)) (Val (Bool false));
 new_test "eval_l 9<5" eval_l (Binop (LessThan, Num 9, Num 5)) (Val (Bool false));
 
-new_test "eval_l false<false [exn]" eval_l (Binop (LessThan, Bool false, Bool false)) (Val x);
-new_test "eval_l false=false" eval_l (Binop (Equals, Bool false, Bool false)) (Val (Bool true));
+new_test "eval_l false<false [exn]" eval_l (
+                              Binop (LessThan, Bool false, Bool false)) (Val x);
+new_test "eval_l false=false" eval_l (Binop (Equals, Bool false, Bool false))
+                                                              (Val (Bool true));
 new_test "eval_l 9+true [exn]" eval_l (Binop (Plus, Num 9, Bool true)) (Val x);
 new_test "eval_l cond_test_1 [exn]" eval_l cond_test_1 (Val x);
 new_test "eval_l cond_test_2" eval_l cond_test_2 (Val (Num 1));
